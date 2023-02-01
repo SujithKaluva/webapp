@@ -109,7 +109,7 @@ dist
 
 # JSONS
 # package.json
-package-lock.json
+# package-lock.json
 
 # Stores VSCode versions used for testing VSCode extensions
 .vscode-test
