@@ -71,6 +71,10 @@ typings/
 # dotenv environment variables file
 .env
 .env.test
+.env.development.local
+.env.test.local
+.env.production.local
+.env.local
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache
@@ -102,3 +106,11 @@ dist
 
 # TernJS port file
 .tern-port
+
+# JSONS
+# package.json
+package-lock.json
+
+# Stores VSCode versions used for testing VSCode extensions
+.vscode-test
+.DS_Store
