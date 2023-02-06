@@ -39,50 +39,108 @@ let encryptedPassword = (password) => {
 
 //CREATE USER
 app.post("/v1/user", async (req, res) => {
-  const firstName = req.body.first_name;
-  const lastName = req.body.last_name;
-  const email = req.body.username;
-  const password = req.body.password;
-  let hashedPassword = "";
-  if(password!=undefined && password!="" && password!=null) hashedPassword = encryptedPassword(req.body.password);
-
-  if (email == undefined || email =="" || !isEmail(email)) res.status(400).send("Please enter valid email");
-  else if (password == undefined || password =="" || !checkPassword(password))
-    res.status(400).send("Please enter valid password");
-  else if (firstName == undefined || firstName =="" || lastName == undefined || lastName =="" || !(checkName(firstName) && checkName(lastName)))
-    res.status(400).send("Please enter valid First and Last Names");
-  else {
-    db.getConnection(async (err, connection) => {
-      if (err) throw err;
-      const sqlSearch = "SELECT * FROM userDB.users WHERE email = ?";
-      const search_query = mysql.format(sqlSearch, [email]);
-
-      const sqlInsert =
-        "INSERT INTO userDB.users(first_name,last_name,email,password) VALUES (?,?,?,?)";
-      const insert_query = mysql.format(sqlInsert, [
-        firstName,
-        lastName,
-        email,
-        hashedPassword,
-      ]);
-
-      await db.query(search_query, async (err, result) => {
-        if (err) throw err;
-        console.log("-> Search Results");
-        console.log(result.length);
-        if (result.length != 0) {
-          console.log("-> User Already Exists");
-          res.status(400).send("User Already Exists");//HTTP Error Code : 409 For Conflict
-        } else {
-          await connection.query(insert_query, (err, result) => {
-            if (err) throw err;
-            console.log("-> Created New User");
-            console.log(result.insertId);
-            res.sendStatus(201);
-          });
-        }
+  const allowedParams = ["first_name", "last_name", "password", "username"];
+  const receivedParams = Object.keys(req.body);
+  const unwantedParams = receivedParams.filter(
+    (param) => !allowedParams.includes(param)
+  );
+  const notReceivedParams = allowedParams.filter((param) =>
+    !receivedParams.includes(param)
+  );
+  console.log(notReceivedParams);
+  console.log(allowedParams);
+  console.log(unwantedParams);
+  console.log(receivedParams);
+  if (unwantedParams.length) {
+    res
+      .status(400)
+      .send({
+        error: `The following parameters are not allowed: ${unwantedParams.join(
+          ", "
+        )}`,
       });
-    });
+  }
+  else if(notReceivedParams.length){
+    res
+      .status(400)
+      .send({
+        error: `The following required parameters are not received: ${notReceivedParams.join(
+          ", "
+        )}`,
+      });
+  } 
+  else {
+    const firstName = req.body.first_name;
+    const lastName = req.body.last_name;
+    const email = req.body.username;
+    const password = req.body.password;
+    let hashedPassword = "";
+    if (password != undefined && password != "" && password != null)
+      hashedPassword = encryptedPassword(req.body.password);
+
+    if (email == undefined || email == "" || !isEmail(email))
+      res.status(400).send("Please enter valid email");
+    else if (
+      password == undefined ||
+      password == "" ||
+      !checkPassword(password)
+    )
+      res.status(400).send("Please enter valid password");
+    else if (
+      firstName == undefined ||
+      firstName == "" ||
+      lastName == undefined ||
+      lastName == "" ||
+      !(checkName(firstName) && checkName(lastName))
+    )
+      res.status(400).send("Please enter valid First and Last Names");
+    else {
+      db.getConnection(async (err, connection) => {
+        if (err) throw err;
+        const sqlSearch = "SELECT * FROM userDB.users WHERE email = ?";
+        const search_query = mysql.format(sqlSearch, [email]);
+
+        const sqlInsert =
+          "INSERT INTO userDB.users(first_name,last_name,email,password) VALUES (?,?,?,?)";
+        const insert_query = mysql.format(sqlInsert, [
+          firstName,
+          lastName,
+          email,
+          hashedPassword,
+        ]);
+
+        db.query(search_query, (err, result) => {
+          if (err) throw err;
+          console.log("-> Search Results");
+          console.log(result.length);
+          if (result.length != 0) {
+            console.log("-> User Already Exists");
+            res.status(400).send("User Already Exists"); //HTTP Error Code : 409 For Conflict
+          } else {
+            connection.query(insert_query, (err, result) => {
+              if (err) throw err;
+              console.log("-> Created New User");
+              console.log(result.insertId);
+              const sqlSearch = "SELECT * FROM userDB.users WHERE user_id = ?";
+              const search_query = mysql.format(sqlSearch, [result.insertId]);
+              connection.query(search_query, async (err, result) => {
+                if (err) throw err;
+                else {
+                  res.status(201).send({
+                    id: result[0].user_id,
+                    first_name: result[0].first_name,
+                    last_name: result[0].last_name,
+                    username: result[0].email,
+                    account_created: result[0].account_created,
+                    account_updated: result[0].account_updated,
+                  });
+                }
+              });
+            });
+          }
+        });
+      });
+    }
   }
 });
 
@@ -90,128 +148,160 @@ app.post("/v1/user", async (req, res) => {
 app.get("/v1/user/:userId", async (req, res) => {
   const userId = req.params.userId;
   let authheader = req.headers.authorization;
-  var auth = new Buffer.from(authheader.split(" ")[1], "base64")
-    .toString()
-    .split(":");
-  var username = auth[0];
-  var password = auth[1];
+  if (!authheader) {
+    res.status(401).send("Unauthorized");
+  } else {
+    var auth = new Buffer.from(authheader.split(" ")[1], "base64")
+      .toString()
+      .split(":");
+    var username = auth[0];
+    var password = auth[1];
 
-  db.getConnection(async (err, connection) => {
-    if (err) throw err;
-    const sqlSearch = "SELECT * FROM userDB.users WHERE user_id = ?";
-    const search_query = mysql.format(sqlSearch, [userId]);
-
-    await db.query(search_query, async (err, result) => {
+    db.getConnection(async (err, connection) => {
       if (err) throw err;
-      console.log("------> Search Results");
-      console.log(result.length);
-      if (result.length == 0) {
-        console.log("------> User Not Found");
-        res.status("User Not Found").sendStatus(404);
-      } 
-      else if(!isEmail(username)){
-        res.status(400).send("Authentication Failed, Please enter valid email");
-      }
-      else {
-        bcrypt.compare(password, result[0].password, (err, resu) => {
-          if (err) throw err;
-          if (resu && username == result[0].email) {
-            console.log("Authentication Successful");
-            console.log(resu);
-            res.status(200).send({
-              user_id: result[0].user_id,
-              first_name: result[0].first_name,
-              last_name: result[0].last_name,
-              username: result[0].email,
-              account_created: result[0].account_created,
-              account_updated: result[0].account_updated,
-            });
-          } else {
-            console.log("Authentication Failed");
-            res.status(401).send("Authentication Failed");
-          }
-        });
-      }
+      const sqlSearch = "SELECT * FROM userDB.users WHERE email = ?";
+      const search_query = mysql.format(sqlSearch, [username]);
+      await db.query(search_query, async (err, result) => {
+        if (err) throw err;
+        console.log("------> Search Results");
+        console.log(result.length);
+        if (result.length == 0) {
+          console.log("------> User Not Found");
+          res.status("User Not Found").sendStatus(401);
+        } else if (userId != result[0].user_id) {
+          res.status("Forbidden").sendStatus(403);
+        } else if (!isEmail(username)) {
+          res
+            .status(401)
+            .send("Authentication Failed, Please enter valid email");
+        } else {
+          bcrypt.compare(password, result[0].password, (err, resu) => {
+            if (err) throw err;
+            if (resu && username == result[0].email) {
+              console.log("Authentication Successful");
+              console.log(resu);
+              res.status(200).send({
+                user_id: result[0].user_id,
+                first_name: result[0].first_name,
+                last_name: result[0].last_name,
+                username: result[0].email,
+                account_created: result[0].account_created,
+                account_updated: result[0].account_updated,
+              });
+            } else {
+              console.log("Authentication Failed");
+              res.status(401).send("Authentication Failed");
+            }
+          });
+        }
+      });
     });
-  });
+  }
 });
 
 //UPDATE USER
-app.put("/v1/user/:userId", async (req, res) => {www
+app.put("/v1/user/:userId", async (req, res) => {
+  const allowedParams = ["first_name", "last_name", "password"];
+  const receivedParams = Object.keys(req.body);
+  const unwantedParams = receivedParams.filter(
+    (param) => !allowedParams.includes(param)
+  );
+  console.log(allowedParams);
+  console.log(unwantedParams);
+  console.log(receivedParams);
+
   const userId = req.params.userId;
   console.log("userid:" + userId);
   let firstName = req.body.first_name;
   let lastName = req.body.last_name;
   let passwordBody = req.body.password;
   let hashedPassword = "";
-  if(passwordBody!=undefined && passwordBody!="" && passwordBody!=null) hashedPassword = encryptedPassword(req.body.password);
+  if (passwordBody != undefined && passwordBody != "" && passwordBody != null)
+    hashedPassword = encryptedPassword(req.body.password);
 
   let authheader = req.headers.authorization;
-  var auth = new Buffer.from(authheader.split(" ")[1], "base64")
-    .toString()
-    .split(":");
-  var username = auth[0];
-  var password = auth[1];
 
-  db.getConnection(async (err, connection) => {
-    if (err) throw err;
-    const sqlSearch = "SELECT * FROM userDB.users WHERE user_id = ?";
-    const search_query = mysql.format(sqlSearch, [userId]);
-
-    await db.query(search_query, async (err, result) => {
+  if (!authheader) {
+    res.status(401).send("Unauthorized");
+  } else {
+    var auth = new Buffer.from(authheader.split(" ")[1], "base64")
+      .toString()
+      .split(":");
+    var username = auth[0];
+    var password = auth[1];
+    db.getConnection(async (err, connection) => {
       if (err) throw err;
-      if (result.length == 0) {
-        console.log("->User not found");
-        res.status(404).send("User Not Found");
-      } 
-      else if(!isEmail(username)){
-        res.status(400).send("Authentication Failed, Please enter valid email");
-      }
-      else {
-        bcrypt.compare(password, result[0].password, (err, resu) => {
-          if (err) throw err;
-          if (firstName == undefined || firstName == "")
-            firstName = result[0].first_name;
-          if (lastName == undefined || lastName == "")
-            lastName = result[0].last_name;
-          if (passwordBody == undefined || passwordBody == "")
-            hashedPassword = result[0].password;
+      const sqlSearch = "SELECT * FROM userDB.users WHERE email = ?";
+      const search_query = mysql.format(sqlSearch, [username]);
 
-          if (resu && username == result[0].email) {
-            console.log("Authentication Successful");
+      await db.query(search_query, async (err, result) => {
+        if (err) throw err;
+        if (result.length == 0) {
+          console.log("->User not found");
+          res.status(401).send("User Not Found");
+        } else if (userId != result[0].user_id) {
+          res.status("Forbidden").sendStatus(403);
+        } else if (!isEmail(username)) {
+          res
+            .status(401)
+            .send("Authentication Failed, Please enter valid email");
+        } else {
+          bcrypt.compare(password, result[0].password, (err, resu) => {
+            if (err) throw err;
+            if (firstName == undefined || firstName == "")
+              firstName = result[0].first_name;
+            if (lastName == undefined || lastName == "")
+              lastName = result[0].last_name;
+            if (passwordBody == undefined || passwordBody == "")
+              hashedPassword = result[0].password;
 
-            const sqlUpdate =
-              "UPDATE userDB.users SET first_name = ?,last_name =?,password=? WHERE user_id=?";
-            const update_query = mysql.format(sqlUpdate, [
-              firstName,
-              lastName,
-              hashedPassword,
-              userId,
-            ]);
-            if (
-              passwordBody != null &&
-              passwordBody != undefined &&
-              passwordBody != "" &&
-              !checkPassword(passwordBody)
-            )
-              res.status(400).send("Please enter valid password");
-            else if (!(checkName(firstName) && checkName(lastName)))
-              res.status(400).send("Please enter valid First and Last Names");
-            else {
-              connection.query(update_query, (err, res1) => {
-                if (err) throw err;
-                console.log("->Updated User");
-                res.status(200).send("User Updated Successfully!");
-              });
+            if (resu && username == result[0].email) {
+              console.log("Authentication Successful");
+
+              if (unwantedParams.length) {
+                res
+                  .status(400)
+                  .send({
+                    error: `The following parameters are not allowed: ${unwantedParams.join(
+                      ", "
+                    )}`,
+                  });
+              }
+              else{
+              const sqlUpdate =
+                "UPDATE userDB.users SET first_name = ?,last_name =?,password=? WHERE user_id=?";
+              const update_query = mysql.format(sqlUpdate, [
+                firstName,
+                lastName,
+                hashedPassword,
+                userId,
+              ]);
+              if (
+                passwordBody != null &&
+                passwordBody != undefined &&
+                passwordBody != "" &&
+                !checkPassword(passwordBody)
+              )
+                res.status(400).send("Please enter valid password");
+              else if (!(checkName(firstName) && checkName(lastName)))
+                res.status(400).send("Please enter valid First and Last Names");
+              else {
+                connection.query(update_query, (err, res1) => {
+                  if (err) throw err;
+                  console.log("->Updated User");
+                  res.status("User Updated Successfully!").send(204);
+                });
+              }
             }
-          } else {
-            console.log("Authentication Failed");
-            res.status(401).send("Authentication Failed");
-          }
-        });
-      }
+            } else {
+              console.log("Authentication Failed");
+              res.status(401).send("Authentication Failed");
+            }
+          });
+        }
+      });
     });
-  });
+  }
 });
 
 //Healthz
@@ -245,7 +335,7 @@ let isEmail = (email) => {
 //Password Regex : min 8 letter password, with at least a symbol, upper and lower case letters and a number
 let checkPassword = (str) => {
   var passRegex = /^(?=.*\d)(?=.*[!@#$%^&*])(?=.*[a-z])(?=.*[A-Z]).{8,}$/;
-//   /^(?=.[0-9])(?=.[!@#$%^&])[a-zA-Z0-9!@#$%^&]{6,16}$/
+  //   /^(?=.[0-9])(?=.[!@#$%^&])[a-zA-Z0-9!@#$%^&]{6,16}$/
   return str.match(passRegex);
 };
 
