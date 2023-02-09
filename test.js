@@ -1,7 +1,11 @@
 const request = require("supertest");
-// const app = require("./index");
+// const app = require("./server");
 const chai = require("chai");
-const expect = chai.expect;
+const chaiHttp = require('chai-http');
+// const expect = chai.expect;
+
+chai.should();
+chai.use(chaiHttp);
 
 // describe("Authentication Tests", function () {
 //   describe("Successes", function () {
@@ -53,3 +57,30 @@ describe('Array', function () {
     });
   });
 });
+
+
+// describe('Healthz API', function() {
+//   describe('Successes', function() {
+//       it('Health Check', function(done) {
+//           request(app).get('/healthz').send({
+// }).end(function(err, res) {
+//               expect(res.statusCode).to.be.equal(200);
+//               done();
+//               // console.log(res.statusCode);
+//           })
+//       })
+//   })
+// })
+
+// describe('GET /api/healthz', () => {
+//   it('should return 200', (done) => {
+//     chai.request(app)
+//       .get('/healthz')
+//       .end((err, res) => {
+//         res.should.have.status(200);
+//         // res.body.should.be.a('array');
+//         // res.body.length.should.be.eql(2);
+//         done();
+//       });
+//   });
+// });
