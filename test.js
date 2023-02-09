@@ -1,8 +1,8 @@
 const request = require("supertest");
-// const app = require("./server");
+const app = require("./server");
 const chai = require("chai");
-const chaiHttp = require('chai-http');
-// const expect = chai.expect;
+// const chaiHttp = require('chai-http');
+const expect = chai.expect;
 
 chai.should();
 chai.use(chaiHttp);
@@ -59,18 +59,18 @@ describe('Array', function () {
 });
 
 
-// describe('Healthz API', function() {
-//   describe('Successes', function() {
-//       it('Health Check', function(done) {
-//           request(app).get('/healthz').send({
-// }).end(function(err, res) {
-//               expect(res.statusCode).to.be.equal(200);
-//               done();
-//               // console.log(res.statusCode);
-//           })
-//       })
-//   })
-// })
+describe('Healthz API', function() {
+  describe('Successes', function() {
+      it('Health Check', function(done) {
+          request(app).get('/healthz').send({
+}).end(function(err, res) {
+              expect(res.statusCode).to.be.equal(200);
+              done();
+              // console.log(res.statusCode);
+          })
+      })
+  })
+})
 
 // describe('GET /api/healthz', () => {
 //   it('should return 200', (done) => {
