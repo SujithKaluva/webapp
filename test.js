@@ -4,8 +4,8 @@ const chai = require("chai");
 // const chaiHttp = require('chai-http');
 const expect = chai.expect;
 
-chai.should();
-chai.use(chaiHttp);
+// chai.should();
+// chai.use(chaiHttp);
 
 // describe("Authentication Tests", function () {
 //   describe("Successes", function () {
