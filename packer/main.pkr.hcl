@@ -45,7 +45,7 @@ variable "aws_secret_access_key" {
   type = string
   //   default = "0VG2FqrJcHxeWrkB4GPgxWPzEdvVv/MVuZX0AixX"
   // default = env("aws_secret_access_key")
-  default = env("aws_secret_access_key")
+  default = env("AWS_SECRET_ACCESS_KEY")
 }
 
 variable "source_filename" {
