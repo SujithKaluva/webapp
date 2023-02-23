@@ -28,14 +28,15 @@ echo 'export DB_USER=sujith' >> ~/.bashrc
 echo 'export DB_PASSWORD=Sujith@123' >> ~/.bashrc
 echo 'export DB_HOST=localhost' >> ~/.bashrc
 
+mkdir webapp
+mv webapp.zip webapp/
+cd webapp
 unzip webapp.zip
 rm webapp.zip
-rm -r __MACOSX
-sudo chmod 755 webapp
-cd webapp
+# cd webapp
 npm install
-
-cd..
+cd ..
+sudo chmod 755 webapp
 touch webapp.service
 cat <<EOF >> webapp.service
 [Unit]
