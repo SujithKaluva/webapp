@@ -36,12 +36,14 @@ variable "subnet_id" {
 
 variable "aws_access_key_id" {
   type    = string
-  default = env("aws_access_key_id")
+  default = "AKIA3KAIDGYTG2SZ6YXO"
+  //   default = env("aws_access_key_id")
 }
 
 variable "aws_secret_access_key" {
   type    = string
-  default = env("aws_secret_access_key")
+  default = "0VG2FqrJcHxeWrkB4GPgxWPzEdvVv/MVuZX0AixX"
+  //   default = env("aws_secret_access_key")
 }
 
 variable "source_filename" {
