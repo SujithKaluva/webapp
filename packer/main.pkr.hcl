@@ -50,7 +50,7 @@ variable "aws_secret_access_key" {
 
 variable "source_filename" {
   type    = string
-  default = "webapp.zip"
+  default = "../webapp.zip"
   //   default = env("ARTIFACT_NAME")
 }
 ///Variable Declaration
