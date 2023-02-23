@@ -22,7 +22,7 @@ jobs:
           sudo mv packer /usr/local/bin/
 
       - name: Zip Git Repository
-        uses: montudor/action-zip@v0.2.0
+        uses: montudor/action-zip@v1
         with:
           args: zip -r webapp.zip .
           source: .
