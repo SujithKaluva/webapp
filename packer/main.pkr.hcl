@@ -35,23 +35,23 @@ variable "subnet_id" {
 }
 
 variable "aws_access_key_id" {
-  type    = string
-//   default = "AKIA3KAIDGYTG2SZ6YXO"
-    // default = env("aws_access_key_id")
-    default = env("AWS_ACCESS_KEY_ID")
+  type = string
+  //   default = "AKIA3KAIDGYTG2SZ6YXO"
+  // default = env("aws_access_key_id")
+  default = env("AWS_ACCESS_KEY_ID")
 }
 
 variable "aws_secret_access_key" {
-  type    = string
-//   default = "0VG2FqrJcHxeWrkB4GPgxWPzEdvVv/MVuZX0AixX"
-    // default = env("aws_secret_access_key")
-    default = env("aws_secret_access_key")
+  type = string
+  //   default = "0VG2FqrJcHxeWrkB4GPgxWPzEdvVv/MVuZX0AixX"
+  // default = env("aws_secret_access_key")
+  default = env("aws_secret_access_key")
 }
 
 variable "source_filename" {
   type    = string
   default = "webapp.zip"
-//   default = env("ARTIFACT_NAME")
+  //   default = env("ARTIFACT_NAME")
 }
 ///Variable Declaration
 
