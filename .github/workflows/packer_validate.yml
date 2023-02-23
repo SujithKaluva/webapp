@@ -9,7 +9,7 @@ env:
   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
   AWS_REGION: us-east-1
   SOURCE_AMI: ami-0dfcb1ef8550277af
-  ARTIFACT_NAME: webapp.zip
+  ARTIFACT_NAME: ../webapp.zip
 
 jobs:
   build:
@@ -19,13 +19,13 @@ jobs:
     steps:
       - name: Checkout Git Repository
         uses: actions/checkout@v2
-      - run: zip -r webapp.zip *.js *.json
-      # - name: Zip Git Repository
-      #   uses: montudor/action-zip@v1
-      #   with:
-      #     args: zip -r webapp.zip .
-      #     source: .
-      #     destination: .
+      # - run: zip -r webapp.zip *.js *.json
+      - name: Zip Git Repository
+        uses: montudor/action-zip@v1
+        with:
+          args: zip -r webapp.zip .
+          source: .
+          destination: .
 
       - name: Packer Validate
         uses: hashicorp/packer-github-actions@master
