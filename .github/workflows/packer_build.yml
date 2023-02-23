@@ -45,8 +45,8 @@ jobs:
       - name: Packer build
         uses: hashicorp/packer-github-actions@master
         with:
-          command: validate
+          command: build
           arguments: '-color=false -on-error=abort -var "source_filename=${{ env.ARTIFACT_NAME }}" -var "aws_access_key_id=${{ env.AWS_ACCESS_KEY_ID }}" -var "aws_secret_access_key=${{ env.AWS_SECRET_ACCESS_KEY }}"'
           target: main.pkr.hcl
-          working_directory: ami
+          working_directory: packer
 
