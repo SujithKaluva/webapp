@@ -1,5 +1,4 @@
 # webapp
-Assignment 1
 
 This is the Repository for CSYE6225 - Cloud Computing and Networking Structures
 
