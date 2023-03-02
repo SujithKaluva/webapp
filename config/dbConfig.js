@@ -1,8 +1,4 @@
 module.exports={
-    // HOST:'localhost',
-    // USER:'root',
-    // PASSWORD:'password',
-    // DB:'cloudDB',
     dialect:'mysql',
     pool:{
        max:5,

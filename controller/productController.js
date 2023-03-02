@@ -11,8 +11,6 @@ const Image = db.images;
 
 const awsBucketName = awsConfig.awsBucketName;
 const s3 = new AWS.S3({
-  // accessKeyId: awsConfig.accessKeyId,
-  // secretAccessKey: awsConfig.secretAccessKey,
   region: awsConfig.region,
 });
 
