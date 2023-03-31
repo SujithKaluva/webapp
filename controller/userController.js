@@ -1,6 +1,8 @@
 const db = require("../model");
 const bcrypt = require("bcrypt");
 const { users } = require("../model");
+const logger = require('../logger/logger');
+const statsdClient = require('../statsd/statsd');
 
 const User = db.users;
 
@@ -15,7 +17,6 @@ let isEmail = (email) => {
 //Password Regex : min 8 letter password, with at least a symbol, upper and lower case letters and a number
 let checkPassword = (str) => {
   var passRegex = /^(?=.*[0-9])(?=.*[!@#$%^&*])[a-zA-Z0-9!@#$%^&*]{6,16}$/;
-  console.log(str);
   return str.match(passRegex);
 };
 
@@ -30,6 +31,8 @@ let encryptedPassword = (password) => {
 };
 
 const adduser = async (req, res) => {
+  statsdClient.increment('users.post');
+  logger.info('--User Create Start--');
   const allowedParams = ["first_name", "last_name", "password", "username"];
   const receivedParams = Object.keys(req.body);
   const unwantedParams = receivedParams.filter(
@@ -38,17 +41,23 @@ const adduser = async (req, res) => {
   const notReceivedParams = allowedParams.filter(
     (param) => !receivedParams.includes(param)
   );
-  console.log(notReceivedParams);
-  console.log(allowedParams);
-  console.log(unwantedParams);
-  console.log(receivedParams);
+    logger.info("allowedParams:"+allowedParams);
+    logger.info("unwantedParams:"+unwantedParams);
+    logger.info("receivedParams:"+receivedParams);
+    logger.info("notReceivedParams:"+notReceivedParams);
   if (unwantedParams.length) {
+    logger.error(`The following parameters are not allowed: ${unwantedParams.join(
+      ", "
+    )}`);
     res.status(400).send({
       error: `The following parameters are not allowed: ${unwantedParams.join(
         ", "
       )}`,
     });
   } else if (notReceivedParams.length) {
+    logger.error(`The following required parameters are not received: ${notReceivedParams.join(
+      ", "
+    )}`);
     res.status(400).send({
       error: `The following required parameters are not received: ${notReceivedParams.join(
         ", "
@@ -59,26 +68,37 @@ const adduser = async (req, res) => {
     const lastName = req.body.last_name;
     const username = req.body.username;
     const password = req.body.password;
+    logger.info("first_name:"+firstName);
+    logger.info("last_name:"+lastName);
+    logger.info("username:"+username);
     let hashedPassword = "";
     if (password != undefined && password != "" && password != null)
       hashedPassword = encryptedPassword(req.body.password);
 
-    if (username == undefined || username == "" || !isEmail(username))
+    if (username == undefined || username == "" || !isEmail(username)){
+      logger.error("Please enter valid email");
       res.status(400).send("Please enter valid email");
+    }
     else if (
       password == undefined ||
       password == "" ||
       !checkPassword(password)
-    )
+    ){
+      logger.error("Please enter valid password");
       res.status(400).send("Please enter a valid password");
+    }
     else if (
       firstName == undefined ||
       firstName == "" ||
       lastName == undefined ||
       lastName == "" ||
       !(checkName(firstName) && checkName(lastName))
-    )
+    ){
+      logger.error("Please enter valid First and Last Names");
+      logger.info("first_name:"+firstName);
+      logger.info("last_name:"+lastName);
       res.status(400).send("Please enter valid First and Last Names");
+    }
     else {
       let existingUser = await User.findOne({
         where: {
@@ -98,8 +118,9 @@ const adduser = async (req, res) => {
             username: username,
           },
         });
-        console.log("-> Created New User:");
-        console.log(newUser.id);
+        logger.info("-> Created New User:");
+        logger.info("userId: "+newUser.id);
+        logger.info("account_created: "+newUser.account_created,);
         res.status(201).send({
           id: newUser.id,
           first_name: newUser.first_name,
@@ -109,7 +130,7 @@ const adduser = async (req, res) => {
           account_updated: newUser.account_updated,
         });
       } else {
-        console.log("-> User Already Exists");
+        logger.error("-> User Already Exists");
         res.status(400).send("User Already Exists");
       }
     }
@@ -117,9 +138,12 @@ const adduser = async (req, res) => {
 };
 
 const getuser = async (req, res) => {
+  statsdClient.increment('users.get');
+  logger.info("--Get User Start--");
   const userId = req.params.userId;
   let authheader = req.headers.authorization;
   if (!authheader) {
+    logger.error("Unauthorized");
     res.status(401).send("Unauthorized");
   } else {
     var auth = new Buffer.from(authheader.split(" ")[1], "base64")
@@ -130,6 +154,7 @@ const getuser = async (req, res) => {
     var password = auth[1];
 
     if (!isEmail(username)) {
+      logger.error("Authentication Failed, Please enter a valid email");
       res.status(401).send("Authentication Failed, Please enter a valid email");
     } else {
       let userDetails = await User.findOne({
@@ -138,16 +163,17 @@ const getuser = async (req, res) => {
         },
       });
       if (userDetails == null) {
-        console.log("------> User Not Found");
+        logger.warn("------> User Not Found");
         res.status("User Not Found").sendStatus(401);
       } else if (userId != userDetails.id) {
+        logger.warn("Forbidden! for UserId:"+userId);
         res.status("Forbidden").sendStatus(403);
       } else {
         bcrypt.compare(password, userDetails.password, (err, resu) => {
           if (err) throw err;
           if (resu && username == userDetails.username) {
-            console.log("Authentication Successful");
-            console.log(resu);
+            logger.info("Authentication Successful");
+            logger.info(resu);
             res.status(200).send({
               id: userDetails.id,
               first_name: userDetails.first_name,
@@ -157,7 +183,7 @@ const getuser = async (req, res) => {
               account_updated: userDetails.account_updated,
             });
           } else {
-            console.log("Authentication Failed");
+            logger.error("Authentication Failed");
             res.status(401).send("Authentication Failed");
           }
         });
@@ -167,15 +193,17 @@ const getuser = async (req, res) => {
 };
 
 const updateuser = async (req, res) => {
+  statsdClient.increment('users.put');
+  logger.info("--Update User Start--");
   const allowedParams = ["first_name", "last_name", "password"];
   const receivedParams = Object.keys(req.body);
   const unwantedParams = receivedParams.filter(
     (param) => !allowedParams.includes(param)
   );
 
-  //   console.log(allowedParams);
-  //   console.log(unwantedParams);
-  //   console.log(receivedParams);
+  logger.info("allowedParams:"+allowedParams);
+  logger.info("unwantedParams:"+unwantedParams);
+  logger.info("receivedParams:"+receivedParams);
 
   const userId = req.params.userId;
   let firstName = req.body.first_name;
@@ -189,6 +217,7 @@ const updateuser = async (req, res) => {
   }
 
   if (!authheader) {
+    logger.error("Unauthorized");
     res.status(401).send("Unauthorized");
   } else {
     var auth = new Buffer.from(authheader.split(" ")[1], "base64")
@@ -199,6 +228,7 @@ const updateuser = async (req, res) => {
     var password = auth[1];
 
     if (!isEmail(username)) {
+      logger.error("Authentication Failed, Please enter valid email");
       res.status(401).send("Authentication Failed, Please enter valid email");
     } else {
       let userDetails = await User.findOne({
@@ -207,9 +237,10 @@ const updateuser = async (req, res) => {
         },
       });
       if (userDetails == null) {
-        console.log("->User not found");
+        logger.error("->User not found");
         res.status(401).send("User Not Found");
       } else if (userId != userDetails.id) {
+        logger.warn("Forbidden");
         res.status("Forbidden").sendStatus(403);
       } else {
         bcrypt.compare(password, userDetails.password, (err, resu) => {
@@ -222,9 +253,12 @@ const updateuser = async (req, res) => {
             hashedPassword = userDetails.password;
 
           if (resu && username == userDetails.username) {
-            console.log("Authentication Successful");
+            logger.info("Authentication Successful");
 
             if (unwantedParams.length) {
+              logger.warn(`The following parameters are not allowed: ${unwantedParams.join(
+                ", "
+              )}`);
               res.status(400).send({
                 error: `The following parameters are not allowed: ${unwantedParams.join(
                   ", "
@@ -241,20 +275,24 @@ const updateuser = async (req, res) => {
                 passwordBody != "" &&
                 !checkPassword(passwordBody)
               ) {
+                logger.warn("Please enter valid password");
                 res.status(400).send("Please enter valid password");
-              } else if (!(checkName(firstName) && checkName(lastName)))
+              } else if (!(checkName(firstName) && checkName(lastName))){
+                logger.error("Please enter valid First and Last Names");
                 res.status(400).send("Please enter valid First and Last Names");
+              }
               else {
                 const user = User.update(upinfo, {
                   where: {
                     id: userId,
                   },
                 });
+                logger.info("User Updated");
                 res.status(204).send(user);
               }
             }
           } else {
-            console.log("Authentication Failed");
+            logger.error("Authentication Failed");
             res.status(401).send("Authentication Failed");
           }
         });

@@ -9,6 +9,8 @@ const app = require("../server");
 const AWS = require("aws-sdk");
 const fs = require("fs");
 const awsConfig = require("../config/awsConfig");
+const logger = require('../logger/logger');
+const statsdClient = require('../statsd/statsd');
 
 const Product = db.products;
 const User = db.users;
@@ -36,11 +38,15 @@ const uploadImageToS3 = (bucketName, fileName, filePath) => {
 };
 
 const addImage = async (req, res) => {
+  statsdClient.increment('images.post');
+  logger.info("-- Add Image Start --");
   if (!req.is("multipart/form-data")) {
+    logger.error("Invalid Request Type - Use 'multipart/form-data'");
     return res
       .status(400)
       .send("Invalid Request Type - Use 'multipart/form-data'");
   } else if (!req.file) {
+    logger.error("Please upload an image");
     return res.status(400).send("Please upload an image");
   } else {
     const productId = req.params.productId;
@@ -49,6 +55,7 @@ const addImage = async (req, res) => {
     let productDetails = "";
     let authheader = req.headers.authorization;
     if (!authheader) {
+      logger.error("Unauthorized");
       res.status(401).send("Unauthorized");
     } else {
       //User Auth Check Start
@@ -58,6 +65,7 @@ const addImage = async (req, res) => {
       var username = auth[0];
       var password = auth[1];
       if (!isEmail.isEmail(username)) {
+        logger.error("Authentication Failed, Please enter a valid email");
         res
           .status(401)
           .send("Authentication Failed, Please enter a valid email");
@@ -68,17 +76,17 @@ const addImage = async (req, res) => {
           },
         });
         if (userDetails == null) {
-          console.log("------> User Not Found");
+          logger.error("------> User Not Found");
           res.status("User Not Found").sendStatus(401);
         } else {
           bcrypt.compare(password, userDetails.password, (err, result) => {
             if (err) throw err;
             authorizationSuccess = result;
             if (authorizationSuccess) {
-              console.log("Authorization Successful!");
+              logger.info("Authorization Successful!");
               searchProductWithId(productId).then((product) => {
                 if (product == null) {
-                  console.log("Product Not Found");
+                  logger.error("Product Not Found");
                   res.sendStatus(401);
                 } else if (product.owner_user_id != userDetails.id) {
                   res.sendStatus(403);
@@ -90,7 +98,7 @@ const addImage = async (req, res) => {
                     req.file.path
                   )
                     .then((data) => {
-                      console.log(data);
+                      logger.info(data);
                       const imgData = {
                         product_id: product.id,
                         file_name: data.Key,
@@ -98,11 +106,12 @@ const addImage = async (req, res) => {
                         productId: product.id,
                       };
                       createImage(imgData).then((imgRes) => {
-                        console.log(imgRes);
+                        logger.info(imgRes);
                         if (imgRes == null) {
-                          console.log("Image Creation Failed");
+                          logger.error("Image Creation Failed");
                           res.status(400).send("Image Creation Failed");
                         } else {
+                          logger.info("Image Uploaded");
                           res.status(201).send({
                             image_id: imgRes.image_id,
                             product_id: imgRes.product_id,
@@ -114,13 +123,13 @@ const addImage = async (req, res) => {
                       });
                     })
                     .catch((error) => {
-                      console.error(error);
+                      logger.error(error);
                       res.status(401).send(error);
                     });
                 }
               });
             } else {
-              console.log("Authentication Failed");
+              logger.error("Authentication Failed");
               res.status(401).send("Authentication Failed");
             }
           });
@@ -131,11 +140,14 @@ const addImage = async (req, res) => {
 };
 
 const deleteImage = async (req, res) => {
+  statsdClient.increment('images.delete');
+  logger.info("--Delete Image Start--");
   let userDetails = "";
   let pId = req.params.productId;
   let imgId = req.params.imageId;
   let authheader = req.headers.authorization;
   if (!authheader) {
+    logger.error("Unauthorized");
     res.status(401).send("Unauthorized");
   } else {
     //User Auth Check Start
@@ -146,6 +158,7 @@ const deleteImage = async (req, res) => {
     var username = auth[0];
     var password = auth[1];
     if (!isEmail.isEmail(username)) {
+      logger.error("Authentication Failed, Please enter a valid email");
       res.status(401).send("Authentication Failed, Please enter a valid email");
     } else {
       userDetails = await User.findOne({
@@ -154,17 +167,19 @@ const deleteImage = async (req, res) => {
         },
       });
       if (userDetails == null) {
-        console.log("------> User Not Found");
+        logger.error("------> User Not Found");
         res.status("User Not Found").sendStatus(401);
       } else {
         bcrypt.compare(password, userDetails.password, (err, result) => {
           if (err) throw err;
           if (result) {
-            console.log("auth success");
+            logger.info("Authorization Successful");
             searchProductWithId(pId).then((pdetails) => {
               if (pdetails == null) {
+                logger.error("not found");
                 res.status(404).send("not found");
               } else if (pdetails.owner_user_id != userDetails.id) {
+                logger.error("forbidden");
                 res.status(403).send("forbidden");
               } else {
                 searchImageWithId(imgId).then((imageDetails) => {
@@ -197,6 +212,7 @@ const deleteImage = async (req, res) => {
               }
             });
           } else {
+            logger.error("unauthorized");
             res.status(401).send("unauthorized");
           }
         });
@@ -206,11 +222,14 @@ const deleteImage = async (req, res) => {
 };
 
 const getAllImages = async (req, res) => {
+  statsdClient.increment('images.getAll');
+  logger.info("--Get All Images Start--");
   let userDetails = "";
   let pId = req.params.productId;
   let imgId = req.params.imageId;
   let authheader = req.headers.authorization;
   if (!authheader) {
+    logger.error("Unauthorized");
     res.status(401).send("Unauthorized");
   } else {
     //User Auth Check Start
@@ -221,6 +240,7 @@ const getAllImages = async (req, res) => {
     var username = auth[0];
     var password = auth[1];
     if (!isEmail.isEmail(username)) {
+      logger.error("Authentication Failed, Please enter a valid email");
       res.status(401).send("Authentication Failed, Please enter a valid email");
     } else {
       userDetails = await User.findOne({
@@ -229,7 +249,7 @@ const getAllImages = async (req, res) => {
         },
       });
       if (userDetails == null) {
-        console.log("------> User Not Found");
+        logger.error("------> User Not Found");
         res.status("User Not Found").sendStatus(401);
       } else {
         bcrypt.compare(password, userDetails.password, (err, result) => {
@@ -245,13 +265,15 @@ const getAllImages = async (req, res) => {
                   if (iList.length == 0) {
                     res.sendStatus(404);
                   } else {
+                    logger.info("imagesList:")
+                    logger.info(iList);
                     res.status(200).send(iList);
                   }
                 });
               }
             });
           } else {
-            console.log("Authentication Failed");
+            logger.error("Authentication Failed");
             res.status(401).send("Authentication Failed");
           }
         });
@@ -261,11 +283,14 @@ const getAllImages = async (req, res) => {
 };
 
 const getImage = async (req, res) => {
+  statsdClient.increment('images.get');
+  logger.info("--Get One Image --");
   let userDetails = "";
   let pId = req.params.productId;
   let imgId = req.params.imageId;
   let authheader = req.headers.authorization;
   if (!authheader) {
+    logger.error("Unauthorized");
     res.status(401).send("Unauthorized");
   } else {
     //User Auth Check Start
@@ -276,6 +301,7 @@ const getImage = async (req, res) => {
     var username = auth[0];
     var password = auth[1];
     if (!isEmail.isEmail(username)) {
+      logger.error("Authentication Failed, Please enter a valid email");
       res.status(401).send("Authentication Failed, Please enter a valid email");
     } else {
       userDetails = await User.findOne({
@@ -284,7 +310,7 @@ const getImage = async (req, res) => {
         },
       });
       if (userDetails == null) {
-        console.log("------> User Not Found");
+        logger.error("------> User Not Found");
         res.status("User Not Found").sendStatus(401);
       } else {
         bcrypt.compare(password, userDetails.password, (err, result) => {
@@ -292,8 +318,10 @@ const getImage = async (req, res) => {
           if (result) {
             searchProductWithId(pId).then((pdetails) => {
               if (pdetails == null) {
+                logger.error("not found");
                 res.status(404).send("not found");
               } else if (pdetails.owner_user_id != userDetails.id) {
+                logger.error("forbidden");
                 res.status(403).send("forbidden");
               } else {
                 searchImageWithId(imgId).then((imageDetails) => {
@@ -308,7 +336,7 @@ const getImage = async (req, res) => {
               }
             });
           } else {
-            console.log("Authentication Failed");
+            logger.error("Authentication Failed");
             res.status(401).send("Authentication Failed");
           }
         });
