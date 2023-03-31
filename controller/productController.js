@@ -8,6 +8,8 @@ const awsConfig = require("../config/awsConfig");
 const Product = db.products;
 const User = db.users;
 const Image = db.images;
+const logger = require('../logger/logger');
+const statsdClient = require('../statsd/statsd');
 
 const awsBucketName = awsConfig.awsBucketName;
 const s3 = new AWS.S3({
@@ -15,13 +17,16 @@ const s3 = new AWS.S3({
 });
 
 const addproduct = async (req, res) => {
+  statsdClient.increment('products.post');
+  logger.info('--Add Product Start--');
   let authorizationSuccess = false;
   let userDetails = "";
   let authheader = req.headers.authorization;
   if (!authheader) {
+    logger.error("Unauthorized");
     res.status(401).send("Unauthorized");
   } else {
-    //User Auth Check Start
+    logger.info("--User Auth Check Start--");
     var auth = new Buffer.from(authheader.split(" ")[1], "base64")
       .toString()
       .split(":");
@@ -29,6 +34,7 @@ const addproduct = async (req, res) => {
     var username = auth[0];
     var password = auth[1];
     if (!isEmail.isEmail(username)) {
+      logger.error("Authentication Failed, Please enter a valid email");
       res.status(401).send("Authentication Failed, Please enter a valid email");
     } else {
       userDetails = await User.findOne({
@@ -37,14 +43,14 @@ const addproduct = async (req, res) => {
         },
       });
       if (userDetails == null) {
-        console.log("------> User Not Found");
+        logger.warn("------> User Not Found");
         res.status("User Not Found").sendStatus(401);
       } else {
         bcrypt.compare(password, userDetails.password, (err, result) => {
           if (err) throw err;
           authorizationSuccess = result;
           if (authorizationSuccess) {
-            console.log("Authorization Successful!");
+            logger.info("Authorization Successful!");
             const allowedParams = [
               "name",
               "description",
@@ -61,56 +67,71 @@ const addproduct = async (req, res) => {
             );
 
             if (unwantedParams.length) {
+              logger.error(`The following parameters are not allowed: ${unwantedParams.join(
+                ", "
+              )}`);
               res.status(400).send({
                 error: `The following parameters are not allowed: ${unwantedParams.join(
                   ", "
                 )}`,
               });
             } else if (notReceivedParams.length) {
+              logger.error(`The following required parameters are not received: ${notReceivedParams.join(
+                ", "
+              )}`);
               res.status(400).send({
                 error: `The following required parameters are not received: ${notReceivedParams.join(
                   ", "
                 )}`,
               });
             } else {
+              logger.info("--Validations--");
               const name = req.body.name;
               const description = req.body.description;
               const sku = req.body.sku;
               const manufacturer = req.body.manufacturer;
               const quantity = req.body.quantity;
               if (name == undefined || name == null || name == "") {
+                logger.error("Product Name is required!");
                 res.status(400).send("Product Name is required!");
               } else if (
                 description == undefined ||
                 description == null ||
                 description == ""
               ) {
+                logger.error("Product description is required!");
                 res.status(400).send("Product description is required!");
               } else if (sku == undefined || sku == null) {
+                logger.error("Product sku is required!");
                 res.status(400).send("Product sku is required!");
               } else if (
                 manufacturer == undefined ||
                 manufacturer == null ||
                 manufacturer == ""
               ) {
+                logger.error("Product manufacturer is required!");
                 res.status(400).send("Product manufacturer is required!");
               } else if (
                 quantity == undefined ||
                 quantity == null ||
                 quantity == ""
               ) {
+                logger.error("Product quantity is required!");
                 res.status(400).send("Product quantity is required!");
               } else if (
                 !(typeof quantity === "number" && Number.isInteger(quantity))
               ) {
+                logger.error("Product quantity needs to be Integer!");
                 res.status(400).send("Product quantity needs to be Integer!");
               } else if (quantity < 0 || quantity > 100) {
+                logger.error("Product quantity needs to be between 0 to 100!");
                 res
                   .status(400)
                   .send("Product quantity needs to be between 0 to 100!");
               } else {
                 searchProduct(sku).then((productDetails) => {
                   if (productDetails) {
+                    logger.error("Product SKU already exists");
                     res.status(400).send("Product SKU already exists");
                   } else {
                     let newProduct = {
@@ -123,6 +144,8 @@ const addproduct = async (req, res) => {
                     };
                     createProduct(newProduct).then((product) => {
                       let createdProductDetails = product.dataValues;
+                      logger.info("Product Created!");
+                      logger.info(createdProductDetails);
                       res.status(201).send({
                         id: createdProductDetails.id,
                         name: createdProductDetails.name,
@@ -141,7 +164,7 @@ const addproduct = async (req, res) => {
               }
             }
           } else {
-            console.log("Authentication Failed");
+            logger.error("Authentication Failed");
             res.status(401).send("Authentication Failed");
           }
         });
@@ -152,12 +175,17 @@ const addproduct = async (req, res) => {
 };
 
 const getproduct = async (req, res) => {
+  statsdClient.increment('products.get');
+  logger.info("--Get Product Start--");
   const productId = req.params.productId;
+  logger.info("productId:"+productId);
   const prod = await Product.findOne({ where: { id: productId } }).then(
     (prod) => {
       if (prod == null) {
+        logger.error("Product Not Found");
         res.status(404).send("Product Not Found");
       } else {
+        logger.info(prod);
         res.status(200).send({
           id: prod.id,
           name: prod.name,
@@ -175,11 +203,15 @@ const getproduct = async (req, res) => {
 };
 
 const patchproduct = async (req, res) => {
+  statsdClient.increment('products.patch');
+  logger.info("--Patch Product Start--");
   const productId = req.params.productId;
+  logger.info("productId:"+productId);
   let authorizationSuccess = false;
   let userDetails = "";
   let authheader = req.headers.authorization;
   if (!authheader) {
+    logger.error("Unauthorized");
     res.status(401).send("Unauthorized");
   } else {
     //User Auth Check Start
@@ -190,6 +222,7 @@ const patchproduct = async (req, res) => {
     var username = auth[0];
     var password = auth[1];
     if (!isEmail.isEmail(username)) {
+      logger.error("Authentication Failed, Please enter a valid email");
       res.status(401).send("Authentication Failed, Please enter a valid email");
     } else {
       userDetails = await User.findOne({
@@ -198,16 +231,17 @@ const patchproduct = async (req, res) => {
         },
       });
       if (userDetails == null) {
-        console.log("------> User Not Found");
+        logger.error("------> User Not Found");
         res.status("User Not Found").sendStatus(401);
       } else {
         bcrypt.compare(password, userDetails.password, (err, result) => {
           if (err) throw err;
           authorizationSuccess = result;
           if (authorizationSuccess) {
-            console.log("Authorization Successful!");
+            logger.info("Authorization Successful!");
             searchProductWithId(productId).then((product) => {
                 if(product == null){
+                    logger.error("Product Not Found");
                     res.status(400).send("Product Not Found");
                 }
               else if (userDetails.id == product.owner_user_id) {
@@ -228,19 +262,15 @@ const patchproduct = async (req, res) => {
                 );
 
                 if (unwantedParams.length) {
+                  logger.error(`The following parameters are not allowed: ${unwantedParams.join(
+                    ", "
+                  )}`);
                   res.status(400).send({
                     error: `The following parameters are not allowed: ${unwantedParams.join(
                       ", "
                     )}`,
                   });
                 }
-                // else if (notReceivedParams.length) {
-                //   res.status(400).send({
-                //     error: `The following required parameters are not received: ${notReceivedParams.join(
-                //       ", "
-                //     )}`,
-                //   });
-                // }
                 else {
                   let name = req.body.name;
                   let description = req.body.description;
@@ -251,26 +281,31 @@ const patchproduct = async (req, res) => {
                     receivedParams.includes("name") &&
                     (name == null || name == "")
                   ) {
+                    logger.error("Product Name cannot be null!");
                     res.status(400).send("Product Name cannot be null!");
                   } else if (
                     receivedParams.includes("description") &&
                     (description == null || description == "")
                   ) {
+                    logger.error("Product description is required!");
                     res.status(400).send("Product description is required!");
                   } else if (
                     receivedParams.includes("sku") &&
                     (sku == "" || sku == null)
                   ) {
+                    logger.error("Product sku is required!");
                     res.status(400).send("Product sku is required!");
                   } else if (
                     receivedParams.includes("manufacturer") &&
                     (manufacturer == null || manufacturer == "")
                   ) {
+                    logger.error("Product manufacturer is required!");
                     res.status(400).send("Product manufacturer is required!");
                   } else if (
                     receivedParams.includes("quantity") &&
                     (quantity == null || quantity == "")
                   ) {
+                    logger.error("Product quantity is required!");
                     res.status(400).send("Product quantity is required!");
                   } else if (
                     receivedParams.includes("quantity") &&
@@ -278,20 +313,24 @@ const patchproduct = async (req, res) => {
                       typeof quantity === "number" && Number.isInteger(quantity)
                     )
                   ) {
+                    logger.error("Product quantity needs to be Integer!");
                     res
                       .status(400)
                       .send("Product quantity needs to be Integer!");
                   } else if (quantity < 0 || quantity > 100) {
+                    logger.error("Product quantity needs to be between 0 to 100!");
                     res
                       .status(400)
                       .send("Product quantity needs to be between 0 to 100!");
                   } else {
                     searchProductWithId(productId).then((productDetails) => {
                       if (!productDetails) {
+                        logger.error("Product not found");
                         res.status(403).send("Product not found");
                       } else if (
                         productDetails.owner_user_id != userDetails.id
                       ) {
+                        logger.error("Forbidden");
                         res.status(403).send("Forbidden");
                       } else {
                         if (name == undefined) name = productDetails.name;
@@ -312,12 +351,13 @@ const patchproduct = async (req, res) => {
                         };
                         searchProduct(sku).then((prod) => {
                           if (prod && receivedParams.includes("sku") && prod.id!=productId) {
+                            logger.error("Product SKU already exists");
                             res.status(400).send("Product SKU already exists");
                           } else {
                             //Update Product Function
                             updateProduct(newProduct).then((product) => {
-                              console.log("updatedProd");
-                              console.log(product);
+                              logger.info("Product Updated");
+                              logger.info(product);
                               res.sendStatus(204);
                             });
                           }
@@ -327,11 +367,12 @@ const patchproduct = async (req, res) => {
                   }
                 }
               } else {
+                logger.error("Forbidden");
                 res.status("Forbidden").sendStatus(403);
               }
             });
           } else {
-            console.log("Authentication Failed");
+            logger.error("Authentication Failed");
             res.status(401).send("Authentication Failed");
           }
         });
@@ -341,11 +382,14 @@ const patchproduct = async (req, res) => {
 };
 
 const updateproduct = async (req, res) => {
+  statsdClient.increment('products.put');
+  logger.info("--Update Product Start--")
   const productId = req.params.productId;
   let authorizationSuccess = false;
   let userDetails = "";
   let authheader = req.headers.authorization;
   if (!authheader) {
+    logger.error("Unauthorized");
     res.status(401).send("Unauthorized");
   } else {
     //User Auth Check Start
@@ -356,6 +400,7 @@ const updateproduct = async (req, res) => {
     var username = auth[0];
     var password = auth[1];
     if (!isEmail.isEmail(username)) {
+      logger.error("Authentication Failed, Please enter a valid email");
       res.status(401).send("Authentication Failed, Please enter a valid email");
     } else {
       userDetails = await User.findOne({
@@ -364,16 +409,17 @@ const updateproduct = async (req, res) => {
         },
       });
       if (userDetails == null) {
-        console.log("------> User Not Found");
+        logger.error("------> User Not Found");
         res.status("User Not Found").sendStatus(401);
       } else {
         bcrypt.compare(password, userDetails.password, (err, result) => {
           if (err) throw err;
           authorizationSuccess = result;
           if (authorizationSuccess) {
-            console.log("Authorization Successful!");
+            logger.info("Authorization Successful!");
             searchProductWithId(productId).then((product) => {
                 if(product == null){
+                  logger.info("Product Not Found");
                     res.status(400).send("Product Not Found");
                 }
               else if (userDetails.id == product.owner_user_id) {
@@ -394,12 +440,18 @@ const updateproduct = async (req, res) => {
                 );
 
                 if (unwantedParams.length) {
+                  logger.error(`The following parameters are not allowed: ${unwantedParams.join(
+                    ", "
+                  )}`);
                   res.status(400).send({
                     error: `The following parameters are not allowed: ${unwantedParams.join(
                       ", "
                     )}`,
                   });
                 } else if (notReceivedParams.length) {
+                  logger.error(`The following required parameters are not received: ${notReceivedParams.join(
+                    ", "
+                  )}`);
                   res.status(400).send({
                     error: `The following required parameters are not received: ${notReceivedParams.join(
                       ", "
@@ -412,46 +464,55 @@ const updateproduct = async (req, res) => {
                   const manufacturer = req.body.manufacturer;
                   const quantity = req.body.quantity;
                   if (name == undefined || name == null || name == "") {
+                    logger.error("Product Name is required!");
                     res.status(400).send("Product Name is required!");
                   } else if (
                     description == undefined ||
                     description == null ||
                     description == ""
                   ) {
+                    logger.error("Product description is required!");
                     res.status(400).send("Product description is required!");
                   } else if (sku == undefined || sku == null || sku == "") {
+                    logger.error("Product sku is required!");
                     res.status(400).send("Product sku is required!");
                   } else if (
                     manufacturer == undefined ||
                     manufacturer == null ||
                     manufacturer == ""
                   ) {
+                    logger.error("Product manufacturer is required!");
                     res.status(400).send("Product manufacturer is required!");
                   } else if (
                     quantity == undefined ||
                     quantity == null ||
                     quantity == ""
                   ) {
+                    logger.error("Product quantity is required!");
                     res.status(400).send("Product quantity is required!");
                   } else if (
                     !(
                       typeof quantity === "number" && Number.isInteger(quantity)
                     )
                   ) {
+                    logger.error("Product quantity needs to be Integer!");
                     res
                       .status(400)
                       .send("Product quantity needs to be Integer!");
                   } else if (quantity < 0 || quantity > 100) {
+                    logger.error("Product quantity needs to be between 0 to 100!");
                     res
                       .status(400)
                       .send("Product quantity needs to be between 0 to 100!");
                   } else {
                     searchProductWithId(productId).then((productDetails) => {
                       if (!productDetails) {
+                        logger.error("Product not found");
                         res.status(403).send("Product not found");
                       } else if (
                         productDetails.owner_user_id != userDetails.id
                       ) {
+                        logger.error("Forbidden");
                         res.status(403).send("Forbidden");
                       } else {
                         let newProduct = {
@@ -462,14 +523,16 @@ const updateproduct = async (req, res) => {
                           manufacturer: req.body.manufacturer,
                           quantity: req.body.quantity,
                         };
+                        logger.info("--Search Product With SKU:"+sku);
                         searchProduct(sku).then((prod) => {
                           if (prod!=null && prod.id!=productId) {
+                            logger.error("Product SKU already exists");
                             res.status(400).send("Product SKU already exists");
                           } else {
                             //Update Product Function
                             updateProduct(newProduct).then((product) => {
-                              console.log("updatedProd");
-                              console.log(product);
+                              logger.info("Product Updated");
+                              logger.info(product);
                               res.sendStatus(204);
                             });
                           }
@@ -479,11 +542,12 @@ const updateproduct = async (req, res) => {
                   }
                 }
               } else {
+                logger.error("Forbidden");
                 res.status("Forbidden").sendStatus(403);
               }
             });
           } else {
-            console.log("Authentication Failed");
+            logger.error("Authentication Failed");
             res.status(401).send("Authentication Failed");
           }
         });
@@ -493,10 +557,14 @@ const updateproduct = async (req, res) => {
 };
 
 const deleteproduct = async (req, res) => {
+  statsdClient.increment('products.delete');
+  logger.info("--Delete Product Start--");
   let pId = req.params.productId;
+  logger.info("Product Id:"+pId);
   let userDetails = "";
   let authheader = req.headers.authorization;
   if (!authheader) {
+    logger.error("Unauthorized");
     res.status(401).send("Unauthorized");
   } else {
     //User Auth Check Start
@@ -507,6 +575,7 @@ const deleteproduct = async (req, res) => {
     var username = auth[0];
     var password = auth[1];
     if (!isEmail.isEmail(username)) {
+      logger.error("Authentication Failed, Please enter a valid email");
       res.status(401).send("Authentication Failed, Please enter a valid email");
     } else {
       userDetails = await User.findOne({
@@ -515,27 +584,32 @@ const deleteproduct = async (req, res) => {
         },
       });
       if (userDetails == null) {
-        console.log("------> User Not Found");
+        logger.error("------> User Not Found");
         res.status("User Not Found").sendStatus(401);
       } else {
         bcrypt.compare(password, userDetails.password, (err, result) => {
           if (err) throw err;
           authsuc = result;
           if (authsuc) {
-            console.log("auth success");
+            logger.info("Authentication Successful");
             searchProductWithId(pId).then((productDetails) => {
               if (productDetails == null) {
+                logger.info("Product Not Found");
                 res.status(404).send("not found");
               } else if (productDetails.owner_user_id == userDetails.id) {
+
+                logger.info("deleteImagesInS3WithProductId Start");
                 deleteImagesInS3WithProductId(pId).then(()=>{
                   deleteProduct(pId).then((rt) => res.sendStatus(204));
                 });
                 
               } else {
+                logger.error("Forbidden");
                 res.status(403).send("forbidden");
               }
             });
           } else {
+            logger.error("unauthorized");
             res.status(401).send("unauthorized");
           }
         });
@@ -545,20 +619,24 @@ const deleteproduct = async (req, res) => {
 };
 
 const searchProduct = async (sku) => {
+  logger.info("--Search product with SKU:"+sku);
   const productDetails = await Product.findOne({
     where: {
       sku: sku,
     },
   });
+  logger.info(productDetails);
   return productDetails;
 };
 
 const searchProductWithId = async (id) => {
+  logger.info("--Search product with id:"+id);
   const productDetails = await Product.findOne({
     where: {
       id: id,
     },
   });
+  logger.info(productDetails);
   return productDetails;
 };
 
@@ -604,13 +682,14 @@ const deleteImagesInS3WithProductId = async (productId) => {
       }).promise();
     });
     await Promise.all(promises);
-    console.log(`Successfully deleted all images for product ID: ${productId}`);
+    logger.info(`Successfully deleted all images for product ID: ${productId}`);
   } catch (err) {
-    console.error(`Error deleting images for product ID ${productId}: ${err}`);
+    logger.error(`Error deleting images for product ID ${productId}: ${err}`);
   }
 };
 
 const getAllImagesByProduct = async (productId) => {
+  logger.info("--getAllImagesByProduct by id:"+productId);
   const imagesList = await Image.findAll({
     where: {
       product_id: productId,
@@ -623,6 +702,7 @@ const getAllImagesByProduct = async (productId) => {
       "s3_bucket_path",
     ],
   });
+  logger.info(imagesList);
   return imagesList;
 };
 
