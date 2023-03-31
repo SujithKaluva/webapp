@@ -4,6 +4,8 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 const multer = require("multer");
+const logger = require('../webapp/logger/logger');
+const statsdClient = require('../webapp/statsd/statsd');
 
 const routers = require("./routes/userRouter.js");
 app.use("/v1/user", routers);
@@ -22,6 +24,11 @@ portfinder.getPort(function (err, port) {
 });
 
 app.get("/healthz", async (req, res) => {
+  const start = process.hrtime();
+  logger.info("Healthz Check");
+  statsdClient.increment('healthz.get');
+  const durationInMs = process.hrtime(start)[1] / 1000000;
+  statsdClient.timing('healthz_response_time', durationInMs);
   res.status(200).send("OK");
 });
 
