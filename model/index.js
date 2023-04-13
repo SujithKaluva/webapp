@@ -1,5 +1,6 @@
 const dbConfig = require("../config/dbConfig.js");
 const { Sequelize, DataTypes } = require("sequelize");
+const logger = require('../logger/logger');
 
 const sequelize = new Sequelize(
   process.env.DB_DATABASE,
@@ -24,10 +25,10 @@ const sequelize = new Sequelize(
 sequelize
   .authenticate()
   .then(() => {
-    console.log("connected");
+    logger.info("connected");
   })
   .catch((err) => {
-    console.log(err);
+    logger.error(err);
   });
 
 const db = {};
@@ -50,10 +51,10 @@ db.images.belongsTo(db.products);
 db.sequelize
   .sync({ force: false })
   .then(() => {
-    console.log("sync done");
+    logger.info("sync done");
   })
   .catch((error) => {
-    console.error("Validation error: ", error);
+    logger.error("Validation error: ", error);
   });
 
 module.exports = db;

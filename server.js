@@ -20,7 +20,7 @@ var portfinder = require("portfinder");
 
 portfinder.getPort(function (err, port) {
   process.env.PORT = port;
-  app.listen(port, () => console.log(`Server Started on port ${port}...`));
+  app.listen(port, () => logger.info(`Server Started on port ${port}...`));
 });
 
 app.get("/healthz", async (req, res) => {
