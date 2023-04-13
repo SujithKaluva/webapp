@@ -32,6 +32,15 @@ app.get("/healthz", async (req, res) => {
   res.status(200).send("OK");
 });
 
+app.get("/health", async (req, res) => {
+  const start = process.hrtime();
+  logger.info("Health Check");
+  statsdClient.increment('health.get');
+  const durationInMs = process.hrtime(start)[1] / 1000000;
+  statsdClient.timing('health_response_time', durationInMs);
+  res.status(200).send("OK");
+});
+
 app.use((err, req, res, next) => {
   if (err instanceof multer.MulterError) {
     res.status(400).json({ message: 'Invalid field name for file upload' });
