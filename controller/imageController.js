@@ -23,7 +23,7 @@ const s3 = new AWS.S3({
 
 // Upload image to S3 bucket
 const uploadImageToS3 = (bucketName, fileName, filePath) => {
-  console.log(awsConfig.accessKeyId);
+  // console.log(awsConfig.accessKeyId);
   const fileContent = fs.readFileSync(filePath);
 
   const params = {

@@ -35,8 +35,8 @@ sudo cat <<EOF > cloudwatch-config.json
       "metrics_collected":{
          "statsd":{
             "service_address":":8125",
-            "metrics_collection_interval":15,
-            "metrics_aggregation_interval":300
+            "metrics_collection_interval":10,
+            "metrics_aggregation_interval":10
             }
         }
     }
