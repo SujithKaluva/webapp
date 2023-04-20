@@ -32,7 +32,7 @@ app.get("/healthz", async (req, res) => {
   res.status(200).send("OK");
 });
 
-app.get("/health", async (req, res) => {
+app.get("/sujith", async (req, res) => {
   const start = process.hrtime();
   logger.info("Health Check");
   statsdClient.increment('health.get');
